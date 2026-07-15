@@ -6,6 +6,8 @@ Use the source documents located in:
 
 **`pr-reviewer-benchmark/corpus/`**
 
+All specification files are in this single folder (flat layout). See `pr-reviewer-benchmark/README.md` for the mapping between corpus filenames and their original repository paths.
+
 For each relevant issue:
 
 * cite the source document;
