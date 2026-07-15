@@ -19,6 +19,8 @@ pub use energy_source::SpeedDependantPower;
 mod etcs_brake_params;
 pub use etcs_brake_params::EtcsBrakeParams;
 
+mod etcs_curve_validation;
+
 mod supported_signaling_system;
 pub use supported_signaling_system::SupportedSignalingSystem;
 
