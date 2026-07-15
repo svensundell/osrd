@@ -7,6 +7,7 @@ pub mod operational_points;
 pub mod route_path;
 pub mod routes;
 pub mod signals;
+pub mod speed_section_overlap;
 pub mod speed_sections;
 pub mod switch_types;
 pub mod switches;
