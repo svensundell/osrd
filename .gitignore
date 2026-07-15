@@ -14,3 +14,6 @@ __pycache__
 
 # Deployment overrides
 /front/public/overrides/overrides.json
+
+# Local benchmark evaluation ground truth (never commit)
+pr-reviewer-benchmark/ground-truth.yaml
