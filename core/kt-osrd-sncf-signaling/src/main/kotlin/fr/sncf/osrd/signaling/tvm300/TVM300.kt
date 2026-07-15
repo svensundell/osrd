@@ -44,7 +44,8 @@ object TVM300 : SignalingSystemDriver {
         signalState: SigState,
         trainState: SignalingTrainState,
     ): Boolean {
-        if (signalState.getEnum("aspect").contains("VL")) {
+        val aspect = signalState.getEnum("aspect")
+        if (SignalingAspectUtils.isVoieLibreAspect(aspect, id)) {
             // VL should never be considered constraining,
             // it would cause infinite loops in spacing resource generation
             return false
