@@ -4,6 +4,7 @@ pub mod electrifications;
 pub mod infra_error;
 pub mod level_crossings;
 pub mod operational_points;
+pub mod route_path;
 pub mod routes;
 pub mod signals;
 pub mod speed_sections;
