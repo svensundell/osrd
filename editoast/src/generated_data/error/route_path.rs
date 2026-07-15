@@ -158,4 +158,33 @@ mod tests {
         assert!(!detector_on_route_interval(100.0, interval));
         assert!(detector_on_route_interval(50.0, interval));
     }
+
+    #[test]
+    fn detector_on_interval_rejects_positions_before_begin() {
+        let interval = RouteTrackInterval { begin: 10.0, end: 90.0 };
+        assert!(!detector_on_route_interval(9.9, interval));
+        assert!(detector_on_route_interval(10.0, interval));
+    }
+
+    #[test]
+    fn collect_route_track_intervals_preserves_track_ids() {
+        use super::collect_route_track_intervals;
+        use schemas::infra::Direction;
+        use schemas::infra::DirectionalTrackRange;
+        use schemas::infra::RoutePath;
+        use schemas::primitives::Identifier;
+
+        let route_path = RoutePath {
+            track_ranges: vec![DirectionalTrackRange {
+                track: Identifier::from("TA1"),
+                begin: 0.0,
+                end: 250.0,
+                direction: Direction::StartToStop,
+            }],
+            switches_directions: vec![],
+        };
+        let intervals = collect_route_track_intervals(&route_path);
+        assert_eq!(intervals.len(), 1);
+        assert_eq!(intervals.get("TA1").unwrap().end, 250.0);
+    }
 }
