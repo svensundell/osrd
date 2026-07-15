@@ -523,46 +523,32 @@ fun getRequirements(
     }
 
     val trainRequirements = runBlocking { timetableCacheManager.get(infra, request.timetableId) }
-    for ((zoneId, rangeSet) in trainRequirements.zoneUses) {
+    val window =
+        RequirementsFilter.WindowBounds(
+            beginEpoch = searchWindowBeginEpoch,
+            endEpoch = searchWindowEndEpoch,
+        )
+
+    val filteredZoneUses =
+        RequirementsFilter.filterZoneUses(trainRequirements.zoneUses, window)
+    for ((zoneId, rangeSet) in filteredZoneUses.rangesByZone) {
         val setBuilder = requirements.computeIfAbsent(zoneId) { TreeRangeSet.create() }
         for (range in rangeSet.asRanges()) {
-            // Filter out unnecessary requirements
-            val included =
-                range.upperEndpoint() > searchWindowBeginEpoch &&
-                    range.lowerEndpoint() < searchWindowEndEpoch
-            if (included) {
-                val newRange =
-                    Range.range(
-                        range.lowerEndpoint() - searchWindowBeginEpoch,
-                        range.lowerBoundType(),
-                        range.upperEndpoint() - searchWindowBeginEpoch,
-                        range.upperBoundType(),
-                    )
-                setBuilder.add(newRange)
-            }
+            setBuilder.add(range)
         }
     }
 
-    for (entry in trainRequirements.detailedRequirements) {
-        val metadataList = metadata.computeIfAbsent(entry.key) { mutableListOf() }
-        for (metadata in entry.value) {
-            val included =
-                metadata.from > searchWindowBeginEpoch && metadata.to < searchWindowEndEpoch
-            if (included) {
-                metadataList.add(
-                    STDCMTimetableData.DetailedRequirement(
-                        metadata.from - searchWindowBeginEpoch,
-                        metadata.to - searchWindowBeginEpoch,
-                        metadata.source,
-                    )
-                )
-            }
-        }
+    val filteredMetadata =
+        RequirementsFilter.filterDetailedRequirements(trainRequirements.detailedRequirements, window)
+    for ((zoneId, entries) in filteredMetadata.entriesByZone) {
+        val metadataList = metadata.computeIfAbsent(zoneId) { mutableListOf() }
+        metadataList.addAll(entries)
     }
+
     return RequirementsWithMetadata(
-        requirements.mapValues { rangeSet ->
-            TreeMap(rangeSet.value.asRanges().associateBy { it.upperEndpoint() })
-        },
+        RequirementsFilter.toParsedRequirements(
+            RequirementsFilter.FilteredZoneUses(requirements)
+        ),
         metadata,
     )
 }
