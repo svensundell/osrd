@@ -14,15 +14,8 @@ object BALtoTVM300 : SignalDriver {
     override val outputSignalingSystem = "TVM300"
 
     private fun cascadePrimaryAspect(aspect: String): String {
-        return when (aspect) {
-            // TODO: should really be an execution aspect (160) but we can't have that since trains
-            // don't react to signaling yet
-            "VL" -> "300VL"
-            "A" -> "300VL"
-            "S" -> "000"
-            "C" -> "000"
-            else -> throw OSRDError.newAspectError(aspect)
-        }
+        return BALtoTVM300AspectTable.primaryAspectMap[aspect]
+            ?: throw OSRDError.newAspectError(aspect)
     }
 
     override fun evalSignal(
