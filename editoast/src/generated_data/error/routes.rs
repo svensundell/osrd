@@ -1,15 +1,11 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
-
 use super::GlobalErrorGenerator;
 use crate::generated_data::error::ObjectErrorGenerator;
+use crate::generated_data::error::route_path;
 use crate::generated_data::infra_error::InfraError;
 use crate::infra_cache::Graph;
 use crate::infra_cache::InfraCache;
 use crate::infra_cache::ObjectCache;
-use schemas::infra::SwitchDirection;
 use schemas::infra::Waypoint;
-use schemas::primitives::Identifier;
 use schemas::primitives::OSRDIdentified;
 use schemas::primitives::OSRDObject;
 use schemas::primitives::ObjectRef;
@@ -20,11 +16,11 @@ pub const OBJECT_GENERATORS: [ObjectErrorGenerator<Context>; 5] = [
     ObjectErrorGenerator::new(1, check_exit_point_ref),
     ObjectErrorGenerator::new(1, check_release_detectors_ref),
     ObjectErrorGenerator::new(1, check_switches_directions_ref),
-    ObjectErrorGenerator::new_ctx(2, check_path),
+    ObjectErrorGenerator::new_ctx(2, route_path::check_path),
 ];
 
 pub const GLOBAL_GENERATORS: [GlobalErrorGenerator<Context>; 1] =
-    [GlobalErrorGenerator::new_ctx(check_missing)];
+    [GlobalErrorGenerator::new_ctx(route_path::check_missing)];
 
 /// Context for the route error generators
 #[derive(Debug, Default)]
@@ -134,98 +130,13 @@ fn check_switches_directions_ref(
     res
 }
 
-/// Check for all routes if they have a consistent path.
-/// We also retrieve track sections that are not used by any route.
-fn check_path(
-    route: &ObjectCache,
-    infra_cache: &InfraCache,
-    graph: &Graph,
-    mut context: Context,
-) -> (Vec<InfraError>, Context) {
-    let route = route.unwrap_route();
-
-    let route_path = match infra_cache.compute_track_ranges_on_route(route, graph) {
-        Some(path) => path,
-        None => return (vec![InfraError::new_invalid_path(route)], context),
-    };
-
-    // Add tracks on the route to the context
-    let tracks_on_route = route_path
-        .track_ranges
-        .iter()
-        .map(|track| (*track.track).clone());
-    context.tracks_on_routes.extend(tracks_on_route);
-
-    let switches_hashset: HashSet<Identifier> = HashSet::from_iter(
-        route_path
-            .switches_directions
-            .iter()
-            .map(|SwitchDirection { switch_id, .. }| switch_id.clone()),
-    );
-    // Search for switches out of the path
-    let mut res = vec![];
-    for switch in route.switches_directions.keys() {
-        if !switches_hashset.contains(switch) {
-            res.push(InfraError::new_object_out_of_path(
-                route,
-                format!("switches_directions.{switch}"),
-                ObjectRef::new(ObjectType::Switch, switch),
-            ));
-        }
-    }
-
-    // Search for detectors out of the path
-    let track_ranges: HashMap<_, _> = route_path
-        .track_ranges
-        .iter()
-        .map(|track| (&track.track.0, (track.begin, track.end)))
-        .collect();
-
-    for (index, detector) in route.release_detectors.iter().enumerate() {
-        let detector = infra_cache.detectors().get::<String>(detector).unwrap();
-        let detector = detector.unwrap_detector();
-        let track_range = track_ranges.get(&detector.track);
-        if let Some(track_range) = track_range
-            && (track_range.0..=track_range.1).contains(&detector.position)
-        {
-            continue;
-        }
-
-        res.push(InfraError::new_object_out_of_path(
-            route,
-            format!("release_detectors.{index}"),
-            detector.get_ref(),
-        ));
-    }
-
-    (res, context)
-}
-
-/// Check that all track sections are covered by a route
-fn check_missing(
-    infra_cache: &InfraCache,
-    _: &Graph,
-    context: Context,
-) -> (Vec<InfraError>, Context) {
-    let mut res = vec![];
-    for track in infra_cache
-        .track_sections()
-        .keys()
-        .filter(|e| !context.tracks_on_routes.contains(*e))
-    {
-        res.push(InfraError::new_missing_route(track));
-    }
-
-    (res, context)
-}
-
 #[cfg(test)]
 mod tests {
     use super::InfraError;
     use crate::generated_data::error::routes::check_entry_point_ref;
     use crate::generated_data::error::routes::check_exit_point_ref;
-    use crate::generated_data::error::routes::check_missing;
-    use crate::generated_data::error::routes::check_path;
+    use crate::generated_data::error::route_path::check_missing;
+    use crate::generated_data::error::route_path::check_path;
     use crate::generated_data::error::routes::check_release_detectors_ref;
     use crate::generated_data::error::routes::check_switches_directions_ref;
     use crate::infra_cache::Graph;

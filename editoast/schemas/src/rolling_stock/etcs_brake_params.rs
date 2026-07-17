@@ -69,7 +69,10 @@ impl<'de> Deserialize<'de> for SpeedIntervalValueCurve {
     {
         let curve = SpeedIntervalValueCurve::deserialize(deserializer)?;
 
-        if curve.boundaries.len() != curve.values.len() - 1 {
+        if !crate::rolling_stock::etcs_curve_validation::curve_length_is_consistent(
+            curve.boundaries.len(),
+            curve.values.len(),
+        ) {
             return Err(serde::de::Error::custom(
                 "curve invalid, expected one more value than boundaries.",
             ));
@@ -79,25 +82,17 @@ impl<'de> Deserialize<'de> for SpeedIntervalValueCurve {
                 "curve should have at least 1 value.",
             ));
         }
-        if curve.values.iter().any(|&x| x < 0.0) {
+        if !crate::rolling_stock::etcs_curve_validation::values_are_non_negative(&curve.values) {
             return Err(serde::de::Error::custom(
                 "curve values must be equal or greater than 0.",
             ));
         };
-        if curve.boundaries.iter().any(|&x| x < 0.0) {
+        if !crate::rolling_stock::etcs_curve_validation::speeds_are_non_negative(&curve.boundaries)
+        {
             return Err(serde::de::Error::custom(
                 "speed boundaries must be equal or greater than 0.",
             ));
         };
-        if curve
-            .boundaries
-            .windows(2)
-            .any(|window| window[0] >= window[1])
-        {
-            return Err(serde::de::Error::custom(
-                "speed boundaries must be strictly increasing.",
-            ));
-        }
 
         Ok(curve)
     }

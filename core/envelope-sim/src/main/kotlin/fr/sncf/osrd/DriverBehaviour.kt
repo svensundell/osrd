@@ -16,6 +16,12 @@ data class DriverBehaviour(
     val brakingAnticipationOffset: Double = 100.0,
     val signalingSystems: List<String> = listOf("BAL", "BAPR"),
 ) {
+    private val reactionProfile =
+        DriverReactionProfile(
+            brakingAnticipationOffset = brakingAnticipationOffset,
+            acceleratingPostponementOffset = acceleratingPostponementOffset,
+        )
+
     /** Applies the driver behavior to the MRSP, adding reaction time for MRSP changes */
     fun applyToMRSP(
         mrsp: Envelope,
@@ -27,19 +33,24 @@ data class DriverBehaviour(
         for (part in mrsp) {
             var begin = part.beginPos
             var end = part.endPos
-            // compute driver behaviour offsets
+
+            val beginSignalingSystem =
+                signalingSystemRanges.get(Offset<PhysicsPath>(begin.meters)) ?: ""
+            val endSignalingSystem = signalingSystemRanges.get(Offset<PhysicsPath>(end.meters)) ?: ""
+
             if (
-                signalingSystems.contains(
-                    signalingSystemRanges.get(Offset<PhysicsPath>(begin.meters)) ?: ""
-                )
-            )
-                begin -= this.brakingAnticipationOffset
+                signalingSystems.contains(beginSignalingSystem) &&
+                    reactionProfile.brakingSignalingSystems.contains(beginSignalingSystem)
+            ) {
+                begin -= reactionProfile.brakingAnticipationOffset
+            }
             if (
-                signalingSystems.contains(
-                    signalingSystemRanges.get(Offset<PhysicsPath>(end.meters)) ?: ""
-                )
-            )
-                end += this.acceleratingPostponementOffset
+                signalingSystems.contains(endSignalingSystem) &&
+                    reactionProfile.accelerationSignalingSystems.contains(endSignalingSystem)
+            ) {
+                end += reactionProfile.acceleratingPostponementOffset
+            }
+
             begin = max(0.0, begin)
             end = min(totalLength, end)
             val speed = part.maxSpeed
