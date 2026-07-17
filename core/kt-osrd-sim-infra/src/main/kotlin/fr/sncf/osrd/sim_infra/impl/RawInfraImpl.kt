@@ -571,29 +571,13 @@ class RawInfraImpl(
         trainTag: String?,
         trainSpeedLimitTagDescriptor: SpeedLimitTagDescriptor?,
     ): Pair<Speed?, SpeedLimitSource?> {
-        if (trainTag == null) {
-            return Pair(null, null)
-        }
-
-        /* SpeedLimitTag handling */
-        var infraTagSpeed = speedSection.speedByTrainTag[trainTag]
-
-        var infraSpeedSource: SpeedLimitSource? =
-            if (infraTagSpeed != null) SpeedLimitSource.GivenTrainTag(trainTag) else null
-
-        if (infraTagSpeed == null && trainSpeedLimitTagDescriptor != null) {
-            for (fallbackTagId in trainSpeedLimitTagDescriptor.fallbackList) {
-                val fallbackSpeed = speedSection.speedByTrainTag[fallbackTagId]
-
-                if (fallbackSpeed != null) {
-                    if (infraTagSpeed == null || fallbackSpeed > infraTagSpeed) {
-                        infraTagSpeed = fallbackSpeed
-                        infraSpeedSource = SpeedLimitSource.FallbackTag(fallbackTagId)
-                    }
-                }
-            }
-        }
-        return Pair(infraTagSpeed, infraSpeedSource)
+        val resolution =
+            SpeedLimitResolver.resolveTagSpeed(
+                speedSection,
+                trainTag,
+                trainSpeedLimitTagDescriptor,
+            )
+        return Pair(resolution.speed, resolution.source)
     }
 
     override fun getRoutesOnTrackChunk(trackChunk: DirTrackChunkId): List<RouteId> {

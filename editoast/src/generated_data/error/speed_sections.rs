@@ -6,6 +6,7 @@ use rangemap::RangeMap;
 use super::GlobalErrorGenerator;
 use super::NoContext;
 use crate::generated_data::error::ObjectErrorGenerator;
+use crate::generated_data::error::speed_section_overlap;
 use crate::generated_data::infra_error::InfraError;
 use crate::infra_cache::Graph;
 use crate::infra_cache::InfraCache;
@@ -76,71 +77,80 @@ pub fn check_speed_section_track_ranges(
 }
 
 fn get_directions(directions: ApplicableDirections) -> Vec<Direction> {
-    match directions {
-        ApplicableDirections::Both => vec![Direction::StartToStop, Direction::StopToStart],
-        ApplicableDirections::StartToStop => vec![Direction::StartToStop],
-        ApplicableDirections::StopToStart => vec![Direction::StopToStart],
-    }
+    speed_section_overlap::get_directions(directions)
 }
 
 /// Checks that speed sections overlapping
 pub fn check_overlapping(infra_cache: &InfraCache, _: &Graph) -> Vec<InfraError> {
     let mut overlapping_sc = HashSet::new();
-    // Key: (Track, Tag, Direction)
-    //   - Tag is None for the default speed limit and Some for the tagged ones
-    // Value: RangeMap<Range, SpeedSectionId>
-    let mut range_maps: HashMap<(String, Option<String>, Direction), RangeMap<u64, String>> =
-        Default::default();
+    let mut range_maps: HashMap<
+        speed_section_overlap::SpeedSectionOverlapKey,
+        RangeMap<u64, String>,
+    > = speed_section_overlap::overlap_range_maps();
 
-    // Iterate over all the speed sections insure we don't report duplicated errors
     for speed_section in infra_cache.speed_sections().values() {
         let speed_section = speed_section.unwrap_speed_section();
-        // Ignore PSL (they can overlap)
-        if speed_section.extensions.psl_sncf.is_some() {
-            continue;
-        }
         for track_range in speed_section.track_ranges.iter() {
-            let range = (track_range.begin * 100.) as u64..(track_range.end * 100.) as u64;
+            let range = speed_section_overlap::track_range_to_overlap_range(
+                track_range.begin,
+                track_range.end,
+            );
             let track_id = &track_range.track.0;
 
             for direction in get_directions(track_range.applicable_directions) {
-                // Handle the default speed limit if it exists
                 if speed_section.speed_limit.is_some() {
                     let range_map = range_maps
-                        .entry((track_id.clone(), None, direction))
+                        .entry(speed_section_overlap::overlap_key(
+                            track_id,
+                            None,
+                            direction,
+                        ))
                         .or_default();
-                    for (_, overlap) in range_map.overlapping(&range) {
-                        if speed_section.get_id() == overlap {
-                            // Avoid reporting overlap with itself
-                            continue;
-                        }
-                        overlapping_sc.insert((speed_section.get_id().clone(), overlap.clone()));
-                    }
-                    range_map.insert(range.clone(), speed_section.get_id().to_string());
+                    record_overlap(
+                        &mut overlapping_sc,
+                        range_map,
+                        &range,
+                        speed_section.get_id(),
+                    );
                 }
-                // Handle all the tags
                 for tag in speed_section.speed_limit_by_tag.keys() {
                     let range_map = range_maps
-                        .entry((track_id.clone(), Some(tag.0.clone()), direction))
+                        .entry(speed_section_overlap::overlap_key(
+                            track_id,
+                            Some(tag.0.clone()),
+                            direction,
+                        ))
                         .or_default();
-                    for (_, overlap) in range_map.overlapping(&range) {
-                        if speed_section.get_id() == overlap {
-                            // Avoid reporting overlap with itself
-                            continue;
-                        }
-                        overlapping_sc.insert((speed_section.get_id().clone(), overlap.clone()));
-                    }
-                    range_map.insert(range.clone(), speed_section.get_id().to_string());
+                    record_overlap(
+                        &mut overlapping_sc,
+                        range_map,
+                        &range,
+                        speed_section.get_id(),
+                    );
                 }
             }
         }
     }
 
-    // Map the overlapping speed sections to infra errors
     overlapping_sc
         .into_iter()
         .map(|(sc1, sc2)| InfraError::new_overlapping_speed_sections(sc1, sc2))
         .collect()
+}
+
+fn record_overlap(
+    overlapping_sc: &mut HashSet<(String, String)>,
+    range_map: &mut RangeMap<u64, String>,
+    range: &std::ops::Range<u64>,
+    speed_section_id: &str,
+) {
+    for (_, overlap) in range_map.overlapping(range) {
+        if speed_section_id == overlap {
+            continue;
+        }
+        overlapping_sc.insert((speed_section_id.to_string(), overlap.clone()));
+    }
+    range_map.insert(range.clone(), speed_section_id.to_string());
 }
 
 #[cfg(test)]

@@ -43,6 +43,9 @@ import mu.KotlinLogging
 
 val logger = KotlinLogging.logger {}
 
+/** Driver reaction margin used when extending spacing requirements after a closed-signal stop. */
+private const val SPACING_STOP_MARGIN_SECONDS = 15.0
+
 data class PathStop(
     val pathOffset: Offset<PhysicsPath>,
     val receptionSignal: RJSTrainStop.RJSReceptionSignal,
@@ -544,7 +547,7 @@ data class SpacingResourceGenerator(
                 closedSignalStops.lastOrNull { it.pathOffset < zoneEntryOffset }?.pathOffset
             if (lastClosedStopBeforeEntryOffset != null) {
                 val stopDepartureTime = callbacks.departureFromStop(lastClosedStopBeforeEntryOffset)
-                val minRequirementTime = stopDepartureTime - CLOSED_SIGNAL_RESERVATION_MARGIN
+                val minRequirementTime = stopDepartureTime - SPACING_STOP_MARGIN_SECONDS
                 beginTime = max(minRequirementTime, beginTime)
                 if (beginTime > simCurrentTime) return null // after a stop not departed from yet
             }

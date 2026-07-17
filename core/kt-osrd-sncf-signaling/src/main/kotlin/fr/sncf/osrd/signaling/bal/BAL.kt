@@ -28,6 +28,10 @@ object BAL : SignalingSystemDriver {
         signalState: SigData<SignalStateMarker>,
         trainState: SignalingTrainState,
     ): Boolean {
-        return signalState.getEnum("aspect") != "VL"
+        val aspect = signalState.getEnum("aspect")
+        if (aspect == "VL" || aspect == "(A)") {
+            return false
+        }
+        return true
     }
 }
